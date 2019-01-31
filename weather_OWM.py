@@ -4,8 +4,16 @@ import json
 import requests
 import sys
 
-#API key for the OpenWeatherMap website.
+# API key for the OpenWeatherMap website.
 owm_api = "941419e458ad22c7d04828d09d3f1666"
+
+# Unit dictionaries
+imp_units = dict(zip(["temp", "wind", "pressure"], ["F", "MPH", "inHg"]))
+metric_units = dict(zip(["temp", "wind", "pressure"], ["C", "KPH", "mBar"]))
+
+# Default to imperial units
+imperial = bool(1)
+units = imp_units
 
 # Lookup table for wind direction
 wind = dict(zip(["N", "NE", "E", "SE", "S", "SW", "W", "NW"],
@@ -19,8 +27,25 @@ def get_json(url):
 
     return json.loads(request.text)
 
-def k_to_f(kelvin):
-    return kelvin * (9/5) - 459.67
+def convert_temp(kelvin):
+    if(imperial):
+        return kelvin * (9/5) - 459.67
+    else:
+        return kelvin - 273.15
+
+def convert_pressure(mbar):
+    if(imperial):
+        return mbar / 33.864
+    else:
+        return mbar
+
+# Wind Speed is given in meters/second, convert to MPH or KPH
+def convert_speed(ms):
+    if(imperial):
+        return ms * 2.237
+    else:
+        return ms * 3.6
+
 
 # Get the lat/long of the passed in zip, then pass it to the NWS API for the
 # purposes of getting their stored location data of the zip.
@@ -36,23 +61,21 @@ def display_alerts(alerts):
         return
 
     for x in range(0,alert_count):
-        print("Alert #" + str(x + 1) + "\n")
-        print(alerts[x]["properties"]["headline"])
-        print("\n")
-        print(alerts[x]["properties"]["description"])
-        print("\n")
-        print(alerts[x]["properties"]["instruction"])
-        print()
-        print()
+        print("Alert #%i\n" % (x + 1))
+        print("%s\n\n%s\n\n%s\n\n" % (alerts[x]["properties"]["headline"],
+            alerts[x]["properties"]["description"],
+            alerts[x]["properties"]["instruction"]))
 
     return
 
+# Display the current weather
 def display_current(weather):
     print("Currently: %s" % weather["weather"][0]["description"])
-    print("Temperature %f F" % k_to_f(weather["main"]["temp"]))
-    print("Pressure %i hPa" % weather["main"]["pressure"])
-    print("Wind %f @ %i" % (weather["wind"]["speed"], weather["wind"]["deg"]))
-    #calculate wind chill
+    print("Temperature: %f %s" % (convert_temp(weather["main"]["temp"]), units["temp"]))
+    print("Humidity: %i%%" % weather["main"]["humidity"])
+    print("Pressure: %f %s" % (convert_pressure(weather["main"]["pressure"]), units["pressure"]))
+    print("Wind %f %s @ %i\n\n" % (convert_speed(weather["wind"]["speed"]), units["wind"], weather["wind"]["deg"]))
+    #calculate wind chill and heat index
     return
 
 # Take in a forecast json dictionary from the NWS, then output it
@@ -63,24 +86,23 @@ def display_forecast(forecast):
     for x in range(0, periods):
         data = forecast["properties"]["periods"][x]
 
-        print(data["name"] + ":")
+        print("%s:" % data["name"])
         print(data["shortForecast"])
 
         if(data["isDaytime"]):
-            temp_type = "High: "
+            temp_type = "High:"
         else:
-            temp_type = "Low: " 
+            temp_type = "Low:" 
 
         if(data["temperatureTrend"]):
-            print(temp_type + str(data["temperature"]) + " " +
-                    data["temperatureUnit"] + " and " + data["temperatureTrend"])
+            print("%s %i %s and %s" % (temp_type, data["temperature"],
+                data["temperatureUnit"], data["temperatureTrend"]))
         else:
-            print(temp_type + str(data["temperature"]) + " " +
-                    data["temperatureUnit"])
+            print("%s %i %s" % (temp_type, data["temperature"], data["temperatureUnit"]))
 
-        print("Wind: " + wind[data["windDirection"]] + " at " + data["windSpeed"])
-        print("Details: " + data["detailedForecast"])
-        print()
+        print("Wind: %s at %s" % (wind[data["windDirection"]], data["windSpeed"]))
+        print("Details: %s\n\n" % data["detailedForecast"])
+
 
 #TODO functionize this?
 # Currently hardcoded to home, pass this in from the command line eventually
@@ -98,6 +120,13 @@ lon = current_w["coord"]["lon"]
 
 local = get_json("http://api.weather.gov/points/%f,%f" % (lat,lon))
 
+# Pull the forecast api URL from the local data.  This will then be used to grab
+# the actual forecast
+forecast_api = local["properties"]["forecast"]
+
+# Grab the forecast from the NWS
+display_forecast(get_json(forecast_api))
+
 # Pull the forecast zone API URL from the local data.  This will be used for
 # getting the alerts for the given area
 fzone_api = local["properties"]["forecastZone"]
@@ -112,10 +141,3 @@ alerts = get_json("https://api.weather.gov/alerts/active/zone/%s" % zone_id)
 
 display_alerts(alerts["features"])
 
-# Pull the forecast api URL from the local data.  This will then be used to grab
-# the actual forecast
-#forecast_api = local["properties"]["forecast"]
-
-# Grab the forecast from the NWS
-
-#display_forecast(forecast)
