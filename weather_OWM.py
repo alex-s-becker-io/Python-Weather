@@ -24,15 +24,18 @@ wind = dict(zip(["N", "NE", "E", "SE", "S", "SW", "W", "NW"],
 # API call function, returns the JSON
 def get_json(url):
     request = requests.get(url)
-
     return json.loads(request.text)
 
+# Unit conversions
+
+# OWM returns data in Kelvin.
 def convert_temp(kelvin):
     if(imperial):
         return kelvin * (9/5) - 459.67
     else:
         return kelvin - 273.15
 
+# OWM and NWS both use mbar in their default returns
 def convert_pressure(mbar):
     if(imperial):
         return mbar / 33.864
@@ -81,6 +84,11 @@ def display_current(weather):
 # Take in a forecast json dictionary from the NWS, then output it
 def display_forecast(forecast):
     temp_type = ""
+
+    if(forecast["status"] == 404):
+        print("National Weather Service had an internal error.")
+        return
+
     periods = len(forecast["properties"]["periods"])
 
     for x in range(0, periods):
@@ -105,7 +113,6 @@ def display_forecast(forecast):
 
 
 #TODO functionize this?
-# Currently hardcoded to home, pass this in from the command line eventually
 # Get the current weather for the passed in zip code
 #currently hardcoded to Milwaukee, WI
 current_w = get_json("https://api.openweathermap.org/data/2.5/weather?zip=%i,us&APPID=%s" % (53263, owm_api))
@@ -140,4 +147,3 @@ zone_id = zone_info["properties"]["id"]
 alerts = get_json("https://api.weather.gov/alerts/active/zone/%s" % zone_id)
 
 display_alerts(alerts["features"])
-
