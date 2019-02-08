@@ -71,17 +71,19 @@ def display_current(weather):
 
 # Read in location from command line
 #TODO actually implement this.  Right now current zip being used is for Butler, WI
-current_w = get_json("https://api.openweathermap.org/data/2.5/weather?zip=%i,us&APPID=%s" % (53263, owm_api))
+current_w_j = get_json("https://api.openweathermap.org/data/2.5/weather?zip=%i,us&APPID=%s" % (53263, owm_api))
 
 # Extract the latitude and longitude from the json.  This will be used to pull
 # the current weather alerts from the National Weather Service.
-lat = current_w["coord"]["lat"]
-lon = current_w["coord"]["lon"]
+lat = current_w_j["coord"]["lat"]
+lon = current_w_j["coord"]["lon"]
 
-local = get_json("http://api.weather.gov/points/%f,%f" % (lat,lon))
+# Get the point information from the NWS.  This includes the city name and state
+# of the zip code given.
+local_j = get_json("http://api.weather.gov/points/%f,%f" % (lat,lon))
 
-city = local["properties"]["relativeLocation"]["properties"]["city"]
-state = local["properties"]["relativeLocation"]["properties"]["state"]
+city = local_j["properties"]["relativeLocation"]["properties"]["city"]
+state = local_j["properties"]["relativeLocation"]["properties"]["state"]
 
 print("Forecast for %s, %s\n\n" % (city, state))
 
@@ -98,15 +100,17 @@ zone_id = zone_info["properties"]["id"]
 # the actual forecast
 forecast_api = local["properties"]["forecast"]
 
-# Grab the forecast from the NWS
+# Grab the forecast from the NWS.  The forecast can "fail internally", in that
+# the API will return success, but unable to find the forecats for that specific
+# point.  In that case, we get the zone forecast, which is wider but should be
+# accurate enough.  This is how the NWS handles this problem anyway (though it's
+# rare that their website has the problem)
 success = NWS.display_forecast(get_json(forecast_api), "point")
 if not success:
-    print("Unable to retreive the point forecast for the given area, using the zone forecast")
+    print("Unable to get the point forecast for the given area, using the zone forecast")
     success = NWS.display_forecast(get_json("https://api.weather.gov/zones/forecast/%s/forecast" % zone_id), "zone")
     if not success:
         print("Unable to retrieve the zone forecast for the given area.")
-
-
 
 # Get the alerts for the area
 alerts = get_json("https://api.weather.gov/alerts/active/zone/%s" % zone_id)

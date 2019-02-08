@@ -40,7 +40,7 @@ def display_zone_forecast(forecast):
         data = forecast["periods"][x]
 
         print("%s:" % data["name"])
-        print("Details: %s\n" % data["detailedForecast"])
+        print("%s\n" % data["detailedForecast"])
 
     return True
 
